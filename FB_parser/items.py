@@ -9,6 +9,8 @@ import scrapy
 
 
 class FbParserItem(scrapy.Item):
-    # define the fields for your item here like:
-    # name = scrapy.Field()
-    pass
+    _id = scrapy.Field()
+    id_person = scrapy.Field()
+    level = scrapy.Field()
+    friends_count = scrapy.Field()
+    friends = scrapy.Field()

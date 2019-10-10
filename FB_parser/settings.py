@@ -15,6 +15,9 @@ SPIDER_MODULES = ['FB_parser.spiders']
 NEWSPIDER_MODULE = 'FB_parser.spiders'
 
 
+LOG_ENABLED = False
+LOG_LEVEL = 'DEBUG'
+
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
 #USER_AGENT = 'FB_parser (+http://www.yourdomain.com)'
 USER_AGENT = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_14_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/76.0.3809.132 Safari/537.36 OPR/63.0.3368.94'
@@ -30,8 +33,8 @@ ROBOTSTXT_OBEY = False
 # See also autothrottle settings and docs
 #DOWNLOAD_DELAY = 3
 # The download delay setting will honor only one of:
-CONCURRENT_REQUESTS_PER_DOMAIN = 8
-CONCURRENT_REQUESTS_PER_IP = 8
+CONCURRENT_REQUESTS_PER_DOMAIN = 4
+CONCURRENT_REQUESTS_PER_IP = 4
 
 # Disable cookies (enabled by default)
 #COOKIES_ENABLED = False
@@ -53,9 +56,9 @@ CONCURRENT_REQUESTS_PER_IP = 8
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
-#DOWNLOADER_MIDDLEWARES = {
-#    'FB_parser.middlewares.FbParserDownloaderMiddleware': 543,
-#}
+DOWNLOADER_MIDDLEWARES = {
+    'FB_parser.middlewares.FbParserDownloaderMiddleware': 543,
+}
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
@@ -65,9 +68,9 @@ CONCURRENT_REQUESTS_PER_IP = 8
 
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
-#ITEM_PIPELINES = {
-#    'FB_parser.pipelines.FbParserPipeline': 300,
-#}
+ITEM_PIPELINES = {
+    'FB_parser.pipelines.FbParserPipeline': 300,
+}
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
