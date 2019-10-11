@@ -10,7 +10,7 @@ from pymongo import MongoClient
 class FbParserPipeline(object):
     def __init__(self):
         client = MongoClient('localhost', 27017)
-        self.mongo_base = client.fb_shortcut
+        self.mongo_base = client.FB_hands
 
     def process_item(self, item, spider):
         collection = self.mongo_base[spider.name]

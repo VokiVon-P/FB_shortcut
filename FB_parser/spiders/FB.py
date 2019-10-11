@@ -9,12 +9,14 @@ from selenium.webdriver.common.keys import Keys
 
 from FB_parser.items import FbParserItem
 
+from collections import deque 
 
 class FbSpider(scrapy.Spider):
     name = 'FB_shortcut'
     allowed_domains = ['facebook.com']
     auth_url = 'https://www.facebook.com'
-    level_manager = {}
+    
+    BINGO = False
     # Михаил Шеремет    https://www.facebook.com/profile.php?id=100002724472881
     # Doug Smith        https://www.facebook.com/profile.php?id=100004082239392
     start_urls = ['https://www.facebook.com/profile.php?id=100002724472881', 'https://www.facebook.com/profile.php?id=100004082239392']
@@ -22,6 +24,7 @@ class FbSpider(scrapy.Spider):
     def __init__(self, login, pswrd, *args, **kwargs):
         self.login = login
         self.pswrd = pswrd
+        self.level_manager = deque()
         super().__init__(*args, *kwargs)
         
   
@@ -41,74 +44,58 @@ class FbSpider(scrapy.Spider):
         login_btn.click()
         #self.webdriver.get(self.first_profile)
 
+    def make_friends_url(self, baseurl):
+        # delim = 'next='
+        # next_url = baseurl.split(delim)[1] if delim in baseurl else baseurl
+        if baseurl.count('sk=friends'):
+            return baseurl
+
+        next_url = baseurl
+        add = 'sk=friends&source_ref=pb_friends_tl'
+        url_friends =  (next_url + '&' + add ) if '?' in next_url else (next_url + '?' + add)
+        return url_friends
+
+    def get_clear_url(self, base_url):
+        tmp_url = base_url.split('&')[0]   
+        
+        if not tmp_url.count('profile.php'):
+            tmp_url = tmp_url.split('?')[0]   
+            
+        print(tmp_url)
+        return tmp_url
 
     def parse(self, response: HtmlResponse):
         # при инициализации авторизуемся и передаем куки, после передаем управление на разбор страницы 
         tmp_driver = webdriver.Chrome()
-        tmp_driver.get(self.auth_url)
+        #tmp_driver.get(self.auth_url)
+        tmp_driver.get(response.url)
         self.fc_login(tmp_driver)
-        yield Request(response.url, cookies=tmp_driver.get_cookies(), callback=self.parse_manager, cb_kwargs={'w_driver': tmp_driver})
-        #yield Request(response.url, cookies=tmp_driver.get_cookies(), callback=self.parse_page, cb_kwargs={'w_driver': tmp_driver, 'level':0})
+        yield Request(response.url, cookies=tmp_driver.get_cookies(), callback=self.parse_page, cb_kwargs={'w_driver': tmp_driver, 'level' : 0})
 
-        """    
-        if '/login/' in response.url:
-            tmp_driver.get(self.auth_url)
-            self.fc_login(tmp_driver)
-            yield Request(response.url, cookies=tmp_driver.get_cookies(),callback=self.parse_page, cb_kwargs={'w_driver': tmp_driver})
-            #tmp_driver.close()
-        else:
-            yield response.follow(tmp_driver.current_url, callback=self.parse_page, cb_kwargs={'w_driver': tmp_driver})
-        
-       
-        yield Request(response.url, cookies=self.webdriver.get_cookies(),callback=self.parse_page)
-
-        if not self.is_init:
-            self.fc_login()
-            self.is_init = True
-            yield Request(self.webdriver.current_url, cookies=self.webdriver.get_cookies(),callback=self.parse)
-        else:
-            yield response.follow(self.first_profile, callback=self.parse_page)
-        """
-
-    def parse_manager(self, response: HtmlResponse, w_driver):
-        #yield Request(response.url, cookies=w_driver.get_cookies(), callback=self.parse_page, cb_kwargs={'w_driver': w_driver, 'level': 0})
-        yield response.follow(self.make_friends_url(response.url), callback=self.parse_page, cb_kwargs={'w_driver': w_driver, 'level':0})
-        #yield self.parse_list(w_driver, 0)
-        #yield self.parse_page( response, w_driver, 0)
-        pass
-
-
-    def parse_list(self, w_driver, level):
-        print('hello')
-        pass
-
-    def make_friends_url(self, baseurl):
-        delim = 'next='
-        next_url = baseurl.split(delim)[1] if delim in baseurl else baseurl
-        url_friends =  (next_url + '&sk=friends') if '?' in next_url else (next_url + '?sk=friends')
-        return url_friends
-
-
+  
     def parse_page(self, response: HtmlResponse, w_driver, level):
 
         tmp_driver = w_driver      
-        # переходим на персональную страницу
-        url_friends =  self.make_friends_url(response.url)
+        # переходим на персональную страницу c друзьями
+        url_friends =  self.make_friends_url(self.get_clear_url(response.url))
         tmp_driver.get(url_friends)
+        time.sleep(1)
 
         """
         Секция обработки персональных данных
         """
         item_id = tmp_driver.find_element_by_xpath('//meta[@property="al:ios:url"]').get_attribute('content')[5:].split('/')[1]
+        
+        # TODO - реализовать проверку по item_id в базе
+        # Если есть в базе и level > 0
+        # То остановить обработку
+        # И сложить два левела - из базы и из этой функции 
+        # Это и будет результат 
+
 
         """
         Секция обработки список друзей
         """
-        # ссылка на списк друзей
-        # friends_link  = tmp_driver.find_element_by_xpath('//a[@data-tab-key="friends"]').get_attribute('href')
-        # переходим на список друзей
-        # tmp_driver.get(friends_link)
-
         # прокручиваем список
         body = tmp_driver.find_element_by_tag_name('body')
         _friend_list_item = '//div[@data-testid="friend_list_item"]/a'
@@ -116,9 +103,7 @@ class FbSpider(scrapy.Spider):
             _friend_list_item ))
         while True:
             body.send_keys(Keys.PAGE_DOWN)
-            time.sleep(1)
             body.send_keys(Keys.PAGE_DOWN)
-            time.sleep(1)
             body.send_keys(Keys.PAGE_DOWN)
             time.sleep(1)
             tmp_len = len(tmp_driver.find_elements_by_xpath(
@@ -127,30 +112,41 @@ class FbSpider(scrapy.Spider):
                 break
             friends_len = len(tmp_driver.find_elements_by_xpath(
                 _friend_list_item ))
+
         # если открытых друзей нет - прекращаем обработку
-        if friends_len == 0:
-            return
+        if friends_len != 0:
+            # получаем и обрабатываем список друзей
+            friends_list = tmp_driver.find_elements_by_xpath(_friend_list_item )
+            friends_list = list(map(lambda x: x.get_attribute('href'), friends_list))
+            item_friends_href_list = list(map(self.get_clear_url, friends_list))
 
-        # получаем и обрабатываем список друзей
-        friends_list = tmp_driver.find_elements_by_xpath(_friend_list_item )
-        item_friends_href_list = list(map(lambda x: x.get_attribute('href'), friends_list))
-        #print(f'Друзей у {full_name}= ', len(href_list))
-        
+            # подготавливаем список кортежей и добавляем его в очередь обработки            
+            level_urls = [ (level+1, href) for href in friends_list]
+            self.level_manager.extend(level_urls)
+            print(len(self.level_manager))
+            
+            # сохраняем в базу
+            yield FbParserItem(
+                                id_person = item_id, 
+                                level = level,
+                                friends_count = friends_len,
+                                friends = item_friends_href_list
+                                )
 
+        # продолжаем дальше ходить по нашему списку
+        # вынимаем первый элемент из очереди и запускаем страницу в обработку
+        level = -1
+        page_url = None
+        if len(self.level_manager):
+            try:
+                level, page_url = self.level_manager.popleft()
+            except:
+                pass
+        #если все ок - идем дальше
+        if page_url is not None and level >= 0 :
+            page_url = page_url
+            #yield response.follow(page_url, callback=self.parse_page, cb_kwargs={'w_driver': w_driver, 'level': level})
         
-        # сохраняем в базу
-        yield FbParserItem(
-                            id_person = item_id, 
-                            level = level,
-                            friends_count = friends_len,
-                            friends = item_friends_href_list
-                            )
-        
-        """
-        # и далее запускаем паучка рекурсивно по списку!
-        for url in item_friends_href_list:
-            yield response.follow(url, callback=self.parse_page, cb_kwargs={'w_driver': tmp_driver})
-        """
         
         
         
