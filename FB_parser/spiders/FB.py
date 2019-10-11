@@ -16,7 +16,6 @@ class FbSpider(scrapy.Spider):
     allowed_domains = ['facebook.com']
     auth_url = 'https://www.facebook.com'
     
-    BINGO = False
     # Михаил Шеремет    https://www.facebook.com/profile.php?id=100002724472881
     # Doug Smith        https://www.facebook.com/profile.php?id=100004082239392
     start_urls = ['https://www.facebook.com/profile.php?id=100002724472881', 'https://www.facebook.com/profile.php?id=100004082239392']
@@ -25,6 +24,7 @@ class FbSpider(scrapy.Spider):
         self.login = login
         self.pswrd = pswrd
         self.level_manager = deque()
+        self.BINGO = False
         super().__init__(*args, *kwargs)
         
   
@@ -144,8 +144,7 @@ class FbSpider(scrapy.Spider):
                 pass
         #если все ок - идем дальше
         if page_url is not None and level >= 0 :
-            page_url = page_url
-            #yield response.follow(page_url, callback=self.parse_page, cb_kwargs={'w_driver': w_driver, 'level': level})
+            yield response.follow(page_url, callback=self.parse_page, cb_kwargs={'w_driver': w_driver, 'level': level})
         
         
         
