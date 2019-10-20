@@ -10,11 +10,13 @@ from selenium.webdriver.common.keys import Keys
 from FB_parser.items import FbParserItem
 
 from collections import deque 
+from pymongo import MongoClient
 
 class FbSpider(scrapy.Spider):
     name = 'FB_shortcut'
     allowed_domains = ['facebook.com']
     auth_url = 'https://www.facebook.com'
+    BINGO = False
     
     # Михаил Шеремет    https://www.facebook.com/profile.php?id=100002724472881
     # Doug Smith        https://www.facebook.com/profile.php?id=100004082239392
@@ -24,7 +26,10 @@ class FbSpider(scrapy.Spider):
         self.login = login
         self.pswrd = pswrd
         self.level_manager = deque()
-        self.BINGO = False
+
+        client = MongoClient('localhost', 27017)
+        self.mongo_base = client.FB_hands
+
         super().__init__(*args, *kwargs)
         
   
@@ -61,7 +66,7 @@ class FbSpider(scrapy.Spider):
         if not tmp_url.count('profile.php'):
             tmp_url = tmp_url.split('?')[0]   
             
-        print(tmp_url)
+        # print(tmp_url)
         return tmp_url
 
     def parse(self, response: HtmlResponse):
@@ -75,23 +80,35 @@ class FbSpider(scrapy.Spider):
   
     def parse_page(self, response: HtmlResponse, w_driver, level):
 
+        if self.BINGO:
+            return
+
         tmp_driver = w_driver      
         # переходим на персональную страницу c друзьями
         url_friends =  self.make_friends_url(self.get_clear_url(response.url))
         tmp_driver.get(url_friends)
-        time.sleep(1)
+        # time.sleep(2)
 
         """
         Секция обработки персональных данных
         """
         item_id = tmp_driver.find_element_by_xpath('//meta[@property="al:ios:url"]').get_attribute('content')[5:].split('/')[1]
+      
+        print(f"ID_PERSON = {item_id}, LEVEL = {level}")
+        try:
+            # проверим наличие идентификатора пользователя в базе
+            item = self.mongo_base[self.name].find_one( {"id_person" : item_id }, { "id_person" : 1, "level" : 1 } )
+            # если есть - удача, вычисляем кол-во рукопожатий и завершаем работу
+            if item is not None:
+                item_level = item['level']
+                
+                bingo = item_level + level
+                print(f"BINGOOOO! Number of handshakes = {bingo}")
+                self.BINGO = True
+                return
+        except:
+            pass
         
-        # TODO - реализовать проверку по item_id в базе
-        # Если есть в базе и level > 0
-        # То остановить обработку
-        # И сложить два левела - из базы и из этой функции 
-        # Это и будет результат 
-
 
         """
         Секция обработки список друзей
@@ -105,7 +122,7 @@ class FbSpider(scrapy.Spider):
             body.send_keys(Keys.PAGE_DOWN)
             body.send_keys(Keys.PAGE_DOWN)
             body.send_keys(Keys.PAGE_DOWN)
-            time.sleep(1)
+            time.sleep(2)
             tmp_len = len(tmp_driver.find_elements_by_xpath(
                 _friend_list_item ))
             if friends_len == tmp_len:
@@ -118,12 +135,13 @@ class FbSpider(scrapy.Spider):
             # получаем и обрабатываем список друзей
             friends_list = tmp_driver.find_elements_by_xpath(_friend_list_item )
             friends_list = list(map(lambda x: x.get_attribute('href'), friends_list))
+            print(f'Друзей = {len(friends_list)}')
             item_friends_href_list = list(map(self.get_clear_url, friends_list))
 
             # подготавливаем список кортежей и добавляем его в очередь обработки            
             level_urls = [ (level+1, href) for href in friends_list]
             self.level_manager.extend(level_urls)
-            print(len(self.level_manager))
+            print(f'Список обработки = {len(self.level_manager)}\n')
             
             # сохраняем в базу
             yield FbParserItem(
