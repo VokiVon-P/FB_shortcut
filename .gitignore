@@ -1,0 +1,9 @@
+_dt_mining
+__pycache__
+-tmp-
+
+requirements.txt
+.vscode
+.env
+debug.log
+FB_shortcut.code-workspace
